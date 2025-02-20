@@ -1,0 +1,147 @@
+package trabalhoGrauB;
+
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.Random;
+
+// Classe que representa um cliente no sistema.
+class Cliente {
+    private String nome;
+
+    public Cliente(String nome) {
+        this.nome = nome;
+    }
+
+    public String getNome() {
+        return nome;
+    }
+}
+
+// Classe que representa um servidor no sistema. Cada servidor é executado em uma thread separada.
+class Servidor implements Runnable {
+    private String nome;
+    private Queue<Cliente> fila;
+    private Queue<Cliente> filaPrioritaria;
+    private volatile boolean ativo = true; // Controla a execução do loop
+
+    public Servidor(String nome, Queue<Cliente> fila, Queue<Cliente> filaPrioritaria) {
+        this.nome = nome;
+        this.fila = fila;
+        this.filaPrioritaria = filaPrioritaria;
+    }
+
+    public void encerrar() {
+        ativo = false;
+    }
+
+    @Override
+    public void run() {
+        while (ativo) {
+            atenderCliente();
+        }
+    }
+
+    /**
+     * Atende o próximo cliente da fila, priorizando clientes na fila prioritária se for um servidor prioritário.
+     * Simula o tempo de atendimento e notifica quando o cliente é atendido.
+     */
+    private void atenderCliente() {
+        Cliente cliente = null;
+
+        synchronized (fila) {
+            // Prioriza a fila prioritária, se o servidor for do tipo "Prioritário"
+            if (this.nome.equals("Prioritário") && !filaPrioritaria.isEmpty()) {
+                cliente = filaPrioritaria.poll();
+            } else if (!this.nome.equals("Prioritário") && !fila.isEmpty()) {
+                cliente = fila.poll();
+            }
+
+            if (cliente != null) {
+                System.out.println("Servidor " + nome + " começou o atendimento para cliente " + cliente.getNome());
+            }
+        }
+
+        if (cliente != null) {
+            // Simula o tempo de atendimento entre 1s e 5s
+            try {
+                Thread.sleep(new Random().nextInt(4000) + 1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Preserva o estado de interrupção
+                System.out.println("Servidor " + nome + " foi interrompido.");
+                return;
+            }
+
+            System.out.println("Servidor " + nome + " concluiu atendimento para cliente " + cliente.getNome());
+            System.out.println("Cliente " + cliente.getNome() + " saiu do sistema.\n");
+        }
+    }
+}
+
+/**
+ * Classe principal que representa o sistema de fila única para todos os servidores.
+ */
+public class SistemaFilaUnica {
+    public static void main(String[] args) {
+        Queue<Cliente> fila = new LinkedList<>();
+        Queue<Cliente> filaPrioritaria = new LinkedList<>();
+
+        // Inicializa os servidores
+        Servidor servidor1 = new Servidor("Normal 1", fila, filaPrioritaria);
+        Servidor servidor2 = new Servidor("Normal 2", fila, filaPrioritaria);
+        Servidor servidor3 = new Servidor("Normal 3", fila, filaPrioritaria);
+        Servidor servidorPrioritario = new Servidor("Prioritário", fila, filaPrioritaria);
+
+        // Criação das threads
+        Thread t1 = new Thread(servidor1);
+        Thread t2 = new Thread(servidor2);
+        Thread t3 = new Thread(servidor3);
+        Thread t4 = new Thread(servidorPrioritario);
+
+        t1.start();
+        t2.start();
+        t3.start();
+        t4.start();
+
+        // Simula a entrada de 30 clientes no sistema
+        for (int i = 1; i <= 30; i++) {
+            Cliente cliente = new Cliente("Cliente " + i);
+
+            synchronized (fila) {
+                if (i % 5 == 0) {
+                    filaPrioritaria.add(cliente);
+                    System.out.println("Novo cliente prioritário entrou na fila: " + cliente.getNome());
+                } else {
+                    fila.add(cliente);
+                    System.out.println("Novo cliente entrou na fila: " + cliente.getNome());
+                }
+                fila.notifyAll(); // Notifica os servidores que há novos clientes
+            }
+
+            // Simula um tempo aleatório de entrada de clientes entre 1s e 3s
+            try {
+                Thread.sleep(new Random().nextInt(2000) + 1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                System.out.println("Sistema interrompido.");
+                break;
+            }
+        }
+
+        // Aguarda um tempo para os atendimentos concluírem
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // Encerra os servidores
+        servidor1.encerrar();
+        servidor2.encerrar();
+        servidor3.encerrar();
+        servidorPrioritario.encerrar();
+
+        System.out.println("=========================================");
+        System.out.println("Sistema fechado. Todos os clientes foram atendidos.");
+        System.out.println("=========================================");
+    }
+}
